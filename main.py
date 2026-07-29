@@ -43,10 +43,10 @@ if __name__ == '__main__':
     # plt.show()
     # print(sumInterference(range_SUE_num))
     i=0
-    for i in range(100):
+    for i in range(1000):
         answer = sumInterference(range_SUE_num)
         # x=109#保护标准和I/N差值 IMT基站：109；IMT终端：106
-        x=109+15
+        x=106
         if answer > -500:
             # print(++i)
             InterferenceList.append(answer+x) #绘制I/N的cdf图

@@ -308,11 +308,11 @@ def singleInterference6():
 
     # 计算发射增益A_A_out
     # A_A_out = S580(x) - 23
-    A_A_out = -5
+    A_A_out = 0
 
     # 计算接受增益A_A_get
-    A_A_get = Gain_TxF1336(S_h, S_v)
-    A_A_get = -5
+    # A_A_get = Gain_TxF1336(S_h, S_v)
+    A_A_get = -3
     # 发射增益两个向量的夹角x
     # x1 = calculate_angle(FS_vector, stationary)
     # A_A_get = itu_r_f699_gain(x1,60/100, 2010e6, 19.4)
@@ -328,8 +328,8 @@ def singleInterference6():
     if clossmax < closs:
         closs = clossmax
     # 计算单星干扰Interference
-    interference = 30 + A_A_get + A_A_out - Ploss - ACLR - Body_loss - closs
-    # print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
+    interference = 33.4 + A_A_get + A_A_out - Ploss  - Body_loss - closs+4
+    print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
     return interference
 
 
