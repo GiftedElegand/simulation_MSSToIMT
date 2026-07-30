@@ -44,7 +44,7 @@ R = 6371137  # 地球平均半径，单位为m
 Robservertotarget = acos(R / (R + BS_ue_height)) * R + acos(R / (R + BS_ue_height)) * R
 print(Robservertotarget)
 # 隔离距离
-SeparationDistance=14000
+SeparationDistance=10000
 Satellite_dis =SeparationDistance+Robservertotarget/2  # Satellite星下点距IMT基站距离，单位m
 # print(Satellite_dis)
 # Satellite_dis = 23000

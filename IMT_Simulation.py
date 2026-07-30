@@ -1,6 +1,7 @@
 import math
 import os
 from math import pi, sin, sqrt, cos, log, acos, atan, log10, radians, atan2, degrees
+from random import uniform
 
 from fontTools.ttLib.tables.G__l_a_t import Glat_format_0
 from scipy.signal import kaiserord
@@ -340,7 +341,6 @@ def path_loss(DKM, M):
 def clutter_loss(fGHz: float, p: float, d: float):
     """
         计算宏基站杂波损耗（clutter loss）。
-
         参数
         ----
         f : float
@@ -355,7 +355,6 @@ def clutter_loss(fGHz: float, p: float, d: float):
         Lclt : float
             杂波损耗 (dB)
         """
-
     sigmas = 6.0
     sigmal = 4.0
 
@@ -365,10 +364,32 @@ def clutter_loss(fGHz: float, p: float, d: float):
     w = 10 ** (-0.2 * Ll)
     v = 10 ** (-0.2 * Ls)
     sigmacb = math.sqrt((sigmal ** 2 * w + sigmas ** 2 * v) / (w + v))
-
     Lclt = -5 * math.log10(w + v) - sigmacb * norm.ppf(1-p)
-
     return Lclt
+
+def clutter_loss_with_max_limit(freq_ghz, p, distance_km):
+    """
+    计算宏基站杂波损耗，带最大值限制
+
+    参数:
+        freq_ghz: 频率 (GHz)
+        p: 概率值 (0 < p < 1)
+        distance_km: 距离 (km)
+
+    返回:
+        Lclt: 杂波损耗 (dB)，带最大值限制
+    """
+    # 计算基础杂波损耗
+    closs = clutter_loss(freq_ghz, p, distance_km)
+
+    # 计算最大值限制：在2km距离，随机概率下的杂波损耗
+    clossmax = clutter_loss(freq_ghz, uniform(0, 1), 2)
+
+    # 如果计算出的杂波损耗超过最大值，则限制为最大值
+    if clossmax < closs:
+        closs = clossmax
+
+    return closs
 
 # ITU-R F.699 仅适用于 D/λ <= 100 的大孔径天线！
 def itu_r_f699_gain(theta_deg, D_m, freq_Hz,Gmax):

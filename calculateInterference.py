@@ -3,7 +3,7 @@ import random
 import matplotlib.pyplot as plt
 from dask.array import arctan
 from IMT_Simulation import IMTUEInCell, coordinate_transforming_UE, transformV, transformH, gain_calc, path_loss, \
-    calculate_angle, S580, Gain_TxF1336, clutter_loss, itu_r_f699_gain, relative_az_el
+    calculate_angle, S580, Gain_TxF1336, clutter_loss, itu_r_f699_gain, relative_az_el, clutter_loss_with_max_limit
 from Parm_Simulation import BS_radius, Robservertotarget, BS_tilt, BS_height, isdis, BS_ue_height, band, \
     ACLR, station_height, Body_loss, Satellite_dis
 
@@ -311,8 +311,7 @@ def singleInterference6():
     A_A_out = 0
 
     # 计算接受增益A_A_get
-    # A_A_get = Gain_TxF1336(S_h, S_v)
-    A_A_get = -3
+    A_A_get = Gain_TxF1336(S_h, S_v)
     # 发射增益两个向量的夹角x
     # x1 = calculate_angle(FS_vector, stationary)
     # A_A_get = itu_r_f699_gain(x1,60/100, 2010e6, 19.4)
@@ -332,12 +331,39 @@ def singleInterference6():
     print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
     return interference
 
+# IMT基站和干扰方关系：拉远（用于多次循环，无输出图；接收增益为1336模型和发射天线为全向模型）
+def singleUEToUEInterference():
+    # 确定卫星 UE的位置
+    s_UE_h = random.uniform(-pi/2, pi/2)
+    s_x = random.uniform(0, Robservertotarget / 2)
+    # 卫星 UE 极坐标转换成直角坐标
+    Satellite_UE = (s_x * cos(s_UE_h), s_x * sin(s_UE_h))
+    # print(Satellite_UE)
+    # 找卫星UE和被干扰站之间的关系:固定卫星星下点在原点，移动受扰站位置
+    #IMT UE的位置
+    IMT_UE=(Satellite_dis,0)
+    # IMT指向卫星UE在水平面的投影距离
+    IMT_to_SUE_x = sqrt((IMT_UE[0]-Satellite_UE[0]) ** 2 + Satellite_UE[1] ** 2)
+    # 计算发射增益A_A_out
+    A_A_out = 0
+    # 计算接受增益A_A_get
+    A_A_get = -3
+    # 计算路径损耗path_loss
+    d = sqrt(IMT_to_SUE_x ** 2 + (BS_height - BS_ue_height) ** 2) / 1000
+    # d=IMT_to_SUE_x/1000
+    Ploss = path_loss(d, band)
+    closs = clutter_loss_with_max_limit(band / 1000, random.uniform(0, 1), d)
+    # 计算单星干扰Interference
+    interference = 33.4 + A_A_get + A_A_out - Ploss  - Body_loss - closs
+    # print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
+    return interference
+
 
 # 求集总干扰
 def sumInterference(num):
     sum = 0
     for i in range(num):
-        sum += 10 ** (singleInterference6() * 0.1)
+        sum += 10 ** (singleUEToUEInterference() * 0.1)
     answer = 10 * log10(sum)
     # print(answer)
     return answer
