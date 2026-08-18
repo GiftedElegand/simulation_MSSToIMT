@@ -327,11 +327,78 @@ def singleInterference6():
     if clossmax < closs:
         closs = clossmax
     # 计算单星干扰Interference
-    interference = 33.4 + A_A_get + A_A_out - Ploss  - Body_loss - closs+4
+    interference = 33.4 + A_A_get + A_A_out - Ploss  - Body_loss - closs-5
+    print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
+    return interference
+
+# FS：拉远（用于多次循环，无输出图；接收增益为699模型和发射天线为全向模型）
+def singleInterferenceFS():
+    # 确定卫星 UE的位置
+    s_UE_h = random.uniform(-pi/2, pi/2)
+    s_x = random.uniform(0, Robservertotarget / 2)
+    Satellite_UE = (s_x * cos(s_UE_h)+Satellite_dis, s_x * sin(s_UE_h))
+    # 找卫星UE和被干扰站之间的关系
+    # FS指向卫星UE在水平面的投影距离
+    FS_to_SUE_x = sqrt(Satellite_UE[0] ** 2 + Satellite_UE[1] ** 2)
+    # 天线+下倾角之后的坐标转化
+    # MSS UE天线指向受扰方基站天线的向量坐标
+    stationary = [-Satellite_UE[0],-Satellite_UE[1], BS_height-BS_ue_height]
+    # FS的天线指向水平的指向随意方向
+    temp=random.uniform(0, 2*pi)
+    FS_vector=[cos(temp), sin(temp), 0]
+    # 计算发射增益A_A_out
+    A_A_out = -5
+
+    # 计算接受增益A_A_get
+    # 发射增益两个向量的夹角x
+    x1 = calculate_angle(FS_vector, stationary)
+    A_A_get = itu_r_f699_gain(x1,60/100, 2010e6, 19.4)
+
+    # 计算路径损耗path_loss
+    d = sqrt(FS_to_SUE_x ** 2 + (BS_height - BS_ue_height) ** 2) / 1000
+    Ploss = path_loss(d, band)
+
+    closs = clutter_loss(band / 1000, random.uniform(0, 1), d)
+    clossmax = clutter_loss(band / 1000, random.uniform(0, 1), 2)
+    if clossmax < closs:
+        closs = clossmax
+    # 计算单星干扰Interference
+    interference = 30 + A_A_get + A_A_out - Ploss  - Body_loss - closs
     print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
     return interference
 
 # IMT基站和干扰方关系：拉远（用于多次循环，无输出图；接收增益为1336模型和发射天线为全向模型）
+def singleInterferenceTOIMTBS():
+    IMT_station = (0, 0)
+    # 确定卫星 UE的位置
+    s_UE_h = random.uniform(-pi / 2, pi / 2)
+    s_x = random.uniform(0, Robservertotarget / 2)
+    Satellite_UE = (s_x * cos(s_UE_h) + Satellite_dis, s_x * sin(s_UE_h))
+    # 找卫星UE和被干扰站之间的关系
+    # IMT指向卫星UE在水平面的投影距离
+    IMT_to_SUE_x = sqrt(Satellite_UE[0] ** 2 + Satellite_UE[1] ** 2)
+    # IMT指向卫星UE的方位角h，仰角v
+    IMT_to_SUE_h, IMT_to_SUE_v = calculate_azimuth_elevation(IMT_station[0], IMT_station[1], BS_height, Satellite_UE[0],
+                                                             Satellite_UE[1], 1.5)
+    S_h, S_v = relative_az_el(math.degrees(IMT_to_SUE_h), math.degrees(IMT_to_SUE_v), 90 - BS_tilt)
+    A_A_out = -5
+
+    # 计算接受增益A_A_get
+    A_A_get = Gain_TxF1336(S_h, 90-S_v)
+    # 计算路径损耗path_loss
+    d = sqrt(IMT_to_SUE_x ** 2 + (BS_height - BS_ue_height) ** 2) / 1000
+    Ploss = path_loss(d, band)
+
+    closs = clutter_loss(band / 1000, random.uniform(0, 1), d)
+    clossmax = clutter_loss(band / 1000, random.uniform(0, 1), 2)
+    if clossmax < closs:
+        closs = clossmax
+    # 计算单星干扰Interference
+    interference = 55 + A_A_get + A_A_out - Ploss - Body_loss - closs+10
+    print(f"卫星UE的位置={Satellite_UE},IMT指向卫星UE的方位角h，仰角v={IMT_to_SUE_h, IMT_to_SUE_v}，转换完={S_h, S_v}，接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
+    return interference
+
+# IMT基站和干扰方关系：拉远（用于多次循环，无输出图；接收增益和发射天线为全向模型）
 def singleUEToUEInterference():
     # 确定卫星 UE的位置
     s_UE_h = random.uniform(-pi/2, pi/2)
@@ -345,7 +412,7 @@ def singleUEToUEInterference():
     # IMT指向卫星UE在水平面的投影距离
     IMT_to_SUE_x = sqrt((IMT_UE[0]-Satellite_UE[0]) ** 2 + Satellite_UE[1] ** 2)
     # 计算发射增益A_A_out
-    A_A_out = 0
+    A_A_out = -5
     # 计算接受增益A_A_get
     A_A_get = -3
     # 计算路径损耗path_loss
@@ -354,7 +421,7 @@ def singleUEToUEInterference():
     Ploss = path_loss(d, band)
     closs = clutter_loss_with_max_limit(band / 1000, random.uniform(0, 1), d)
     # 计算单星干扰Interference
-    interference = 33.4 + A_A_get + A_A_out - Ploss  - Body_loss - closs
+    interference = 35 + A_A_get + A_A_out - Ploss  - Body_loss - closs
     # print(f"卫星UE的位置={Satellite_UE},接收增益 = {A_A_get:.2f}, 路径损耗 = {Ploss:.2f}, 干扰 = {interference:.2f}")
     return interference
 
@@ -363,7 +430,7 @@ def singleUEToUEInterference():
 def sumInterference(num):
     sum = 0
     for i in range(num):
-        sum += 10 ** (singleUEToUEInterference() * 0.1)
+        sum += 10 ** (singleInterferenceFS() * 0.1)
     answer = 10 * log10(sum)
     # print(answer)
     return answer

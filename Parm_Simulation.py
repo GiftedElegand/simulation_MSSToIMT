@@ -22,7 +22,7 @@ def max_terminals_hex(R: float, r: float) -> int:
     # 总终端数 = 1 + 3 * n * (n + 1)
     return 1 + 3 * max_layers * (max_layers + 1)
 
-band = 1900  # 频段
+band = 2010  # 频段
 Satellite_height = 670  # Satellite站高，单位km
 # 同频ACLR=0
 # 邻频IMT基站ACLR=45 IMT终端ACLR=30
@@ -44,7 +44,7 @@ R = 6371137  # 地球平均半径，单位为m
 Robservertotarget = acos(R / (R + BS_height)) * R + acos(R / (R + BS_ue_height)) * R
 print(Robservertotarget)
 # 隔离距离
-SeparationDistance=10000
+SeparationDistance=300000
 Satellite_dis =SeparationDistance+Robservertotarget/2  # Satellite星下点距IMT基站距离，单位m
 # print(Satellite_dis)
 # Satellite_dis = 23000

@@ -97,9 +97,10 @@ def CDF_plt(data,pltname,SeparationDistance):
     y = ecdf(x)
     # 绘制阶梯图
     plt.ylim(0, 1.05)
-    plt.title(f"MSS UE → HIBS Interference,Separation Distance={SeparationDistance/1000}km")
+    plt.title(f"{pltname} Interference,Separation Distance={SeparationDistance/1000}km")
     plt.plot(x, y)
-    mark_x=-6
+    # IMT系统为-6，FS为-126
+    mark_x=-126
     mark_y=ecdf(mark_x)
     plt.plot(mark_x, mark_y, color="blue", marker="^")
     plt.plot([mark_x, mark_x], [0, mark_y], ls='--', color='gray', lw=1)

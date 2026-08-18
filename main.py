@@ -46,12 +46,10 @@ if __name__ == '__main__':
     for i in range(1000):
         answer = sumInterference(range_SUE_num)
         # x=109#保护标准和I/N差值 IMT基站：109；IMT终端：106
-        x=106
-        if answer > -500:
-            # print(++i)
-            InterferenceList.append(answer+x) #绘制I/N的cdf图
+        x=0
+        InterferenceList.append(answer+x) #绘制I/N的cdf图
     print(max(InterferenceList)-x)
     print(min(InterferenceList)-x)
     print(len(InterferenceList))
-    CDF_plt(InterferenceList,"循环100次",SeparationDistance)
+    CDF_plt(InterferenceList,"MSS UE → FS",SeparationDistance)
     # print(Gain_TxF1336(0,2.79))
