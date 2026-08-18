@@ -207,7 +207,8 @@ def calculate_rx_gain(victim_config, UE_v, UE_h, S_v, S_h, **kwargs):
 
 
 def calculate_single_interference(
-    scenario_name,
+    int_scenario_name,
+    vic_scenario_name,
     tx_power=None,
     tx_gain=None,
     rx_gain_fixed=None,
@@ -254,8 +255,8 @@ def calculate_single_interference(
     float : 干扰值 (dBm)
     """
     # 获取默认配置
-    int_params = get_interference_params(scenario_name)
-    vic_params = get_victim_params(scenario_name)
+    int_params = get_interference_params(int_scenario_name)
+    vic_params = get_victim_params(vic_scenario_name)
 
     # 使用传入参数或默认值
     if tx_power is None:
@@ -404,7 +405,7 @@ def singleInterference2_new():
     )
 
 
-def singleInterference3_new():
+def singleInterference_new():
     """
     HIBS 或远距离卫星系统对地面系统的干扰分析（新版本）
     受害方距离可达 100km
@@ -412,8 +413,9 @@ def singleInterference3_new():
     使用配置：scenario3
     """
     return calculate_single_interference(
-        scenario_name="scenario3",
-        victim_distance_range=(0, 100000),
+        int_scenario_name="scenario4",
+        vic_scenario_name="scenario1",
+        victim_distance_range=(0, 50000),
         satellite_distance_range=(0, Robservertotarget / 2),
         is_ue_victim=False,
         extra_gain_offset=10
@@ -512,7 +514,7 @@ def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
     func_map = {
         "scenario1": singleInterference1_new,
         "scenario2": singleInterference2_new,
-        "scenario3": singleInterference3_new,
+        "scenario3": singleInterference_new,
         "scenario4": singleInterference4_new,
         "scenario6": singleInterference6_new,
         "scenario_other": singleInterferenceOther_new
@@ -551,7 +553,7 @@ def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
 # 测试代码
 if __name__ == "__main__":
     print("=" * 60)
-    print("干扰仿真计算模块（新版本）测试")
+    print("干扰仿真计算模块测试")
     print("=" * 60)
 
     # 显示所有可用的场景配置
@@ -567,10 +569,10 @@ if __name__ == "__main__":
 
     # 运行单个场景测试
     print("\n【单场景测试】")
-    test_scenario = "scenario1"
+    test_scenario = "scenario4-scenario1"
     print(f"\n测试场景：{test_scenario}")
     try:
-        result = singleInterference1_new()
+        result = singleInterference_new()
         print(f"  单次干扰计算结果：{result:.2f} dBm")
     except Exception as e:
         print(f"  错误：{e}")

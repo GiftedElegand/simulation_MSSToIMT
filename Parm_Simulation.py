@@ -29,7 +29,7 @@ Satellite_height = 670  # Satellite站高，单位km
 ACLR=0
 # IMT参数(农村场景）
 BS_radius = 4000  # IMT小区直径m
-BS_height = 20000  # IMT基站高度m
+BS_height = 30  # IMT基站高度m
 station_height=55 # 其他系统站高m
 BS_ue_height = 1.5  # IMT终端高度m
 BS_tilt = 3 # IMT天线下倾角
@@ -41,7 +41,7 @@ Body_loss=4 #单位db
 
 R = 6371137  # 地球平均半径，单位为m
 # 对于IMT基站卫星的可见半径 单位为m 
-Robservertotarget = acos(R / (R + BS_ue_height)) * R + acos(R / (R + BS_ue_height)) * R
+Robservertotarget = acos(R / (R + BS_height)) * R + acos(R / (R + BS_ue_height)) * R
 print(Robservertotarget)
 # 隔离距离
 SeparationDistance=10000
@@ -52,9 +52,9 @@ Satellite_dis =SeparationDistance+Robservertotarget/2  # Satellite星下点距IM
 # 可见面积
 VisibleArea=pi*(Robservertotarget - isdis)**2
 # range_SUE_num = floor(VisibleArea * SatelliteUEdensity)  # 向下取整得到整数个数
-range_SUE_num=ceil(VisibleArea * SatelliteUEdensity) # 向上取整得到整数个数
+# range_SUE_num=ceil(VisibleArea * SatelliteUEdensity) # 向上取整得到整数个数
 # range_SUE_num = max_terminals_hex(Robservertotarget,BS_radius)
-# range_SUE_num=1
+range_SUE_num=1
 # print(VisibleArea)
 print(range_SUE_num)
 
