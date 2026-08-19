@@ -375,36 +375,6 @@ def calculate_single_interference(
     return interference
 
 
-def singleInterference1_new():
-    """
-    IMT 基站与卫星系统的"挖洞"场景（新版本）
-    计算保护区域范围，防止卫星终端干扰 IMT 基站
-
-    使用配置：scenario1
-    """
-    return calculate_single_interference(
-        scenario_name="scenario1",
-        victim_distance_range=(0, None),  # 由 IMTUEInCell 决定
-        satellite_distance_range=(isdis, Robservertotarget / 2),
-        is_ue_victim=False
-    )
-
-
-def singleInterference2_new():
-    """
-    "拉远"场景（新版本）
-    通过蒙特卡洛仿真评估高功率卫星终端对 IMT 基站的累积干扰概率分布
-
-    使用配置：scenario2
-    """
-    return calculate_single_interference(
-        scenario_name="scenario2",
-        victim_distance_range=(0, None),
-        satellite_distance_range=(0, Robservertotarget / 2),
-        is_ue_victim=False
-    )
-
-
 def singleInterference_new():
     """
     HIBS 或远距离卫星系统对地面系统的干扰分析（新版本）
@@ -422,77 +392,38 @@ def singleInterference_new():
     )
 
 
-def singleInterference4_new():
+def aggregateInterference_new(num_interferers):
     """
-    IMT 用户终端受干扰场景（新版本）
-    假设终端为全向天线，评估卫星对普通用户设备的干扰影响
-
-    使用配置：scenario4
+    聚合干扰计算函数
+    
+    当一次快照中有 N 个干扰源时，先使用 singleInterference_new 计算每个干扰源
+    对受扰方的干扰值，然后通过功率叠加的方式计算总聚合干扰。
+    
+    聚合公式：I_total = 10 * log10(sum(10^(I_i/10)))
+    其中 I_i 为第 i 个干扰源的干扰值 (dBm)
+    
+    参数
+    ----
+    num_interferers : int
+        干扰源数量 N
+    
+    返回
+    ----
+    float : 聚合干扰值 (dBm)
     """
-    return calculate_single_interference(
-        scenario_name="scenario4",
-        victim_distance_range=(0, None),
-        satellite_distance_range=(0, Robservertotarget / 2),
-        is_ue_victim=True
-    )
-
-
-def singleInterference6_new():
-    """
-    固定业务或射电天文台等敏感系统保护场景（新版本）
-    使用 ITU-R F.1336 标准天线模型进行合规性仿真
-
-    使用配置：scenario6
-    """
-    return calculate_single_interference(
-        scenario_name="scenario6",
-        victim_distance_range=(0, Robservertotarget / 2),
-        satellite_distance_range=(0, Robservertotarget / 2),
-        use_relative_az_el=True
-    )
-
-
-def singleInterferenceOther_new():
-    """
-    射电天文、卫星气象等敏感系统干扰场景（新版本）
-
-    使用配置：scenario_other
-    """
-    # 获取干扰站参数
-    int_params = get_interference_params("scenario_other")
-    tx_power = int_params["tx_power"]
-    tx_gain_base = int_params["tx_gain"]
-
-    # 获取受扰站参数
-    vic_params = get_victim_params("scenario_other")
-
-    # 受干扰方位置
-    x = 0
-
-    # 确定卫星 UE 的位置
-    s_UE_h = random.uniform(-180, 180) / 180 * pi
-    s_x = random.uniform(0, Robservertotarget / 2)
-    Satellite_vector = [Satellite_dis + s_x * cos(s_UE_h), s_x * sin(s_UE_h), BS_ue_height]
-    stationary = [-Satellite_dis, 0, BS_height - BS_ue_height]
-
-    # 计算 IMT 到卫星 UE 的距离
-    IMT_to_SUE_x = sqrt(Satellite_vector[0]**2 + Satellite_vector[1]**2)
-    if IMT_to_SUE_x >= Robservertotarget:
-        return -1000
-
-    # 计算两个向量的夹角
-    angle = calculate_angle(Satellite_vector, stationary)
-
-    # 计算发射增益（使用 S580 模型）
-    A_A_out = S580(angle)
-
-    # 计算路径损耗
-    pl = path_loss(sqrt(IMT_to_SUE_x**2 + (BS_height - BS_ue_height)**2) / 1000, band)
-
-    # 计算干扰
-    interference = tx_power + tx_gain_base + A_A_out - pl - ACLR - Body_loss
-
-    return interference
+    sum_power_mw = 0.0  # 累加功率值（毫瓦）
+    
+    for _ in range(num_interferers):
+        # 计算单个干扰源的干扰值 (dBm)
+        interference_dbm = singleInterference_new()
+        
+        # 将 dBm 转换为毫瓦并累加：P(mW) = 10^(P(dBm)/10)
+        sum_power_mw += 10 ** (interference_dbm / 10.0)
+    
+    # 将总功率转换回 dBm：P(dBm) = 10 * log10(P(mW))
+    aggregate_interference = 10 * log10(sum_power_mw)
+    
+    return aggregate_interference
 
 
 def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
@@ -512,12 +443,7 @@ def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
     """
     # 选择对应的仿真函数
     func_map = {
-        "scenario1": singleInterference1_new,
-        "scenario2": singleInterference2_new,
-        "scenario3": singleInterference_new,
-        "scenario4": singleInterference4_new,
-        "scenario6": singleInterference6_new,
-        "scenario_other": singleInterferenceOther_new
+        "scenario3": singleInterference_new
     }
 
     if scenario_name not in func_map:
