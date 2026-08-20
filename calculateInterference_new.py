@@ -375,28 +375,11 @@ def calculate_single_interference(
     return interference
 
 
-def singleInterference_new():
-    """
-    HIBS 或远距离卫星系统对地面系统的干扰分析（新版本）
-    受害方距离可达 100km
-
-    使用配置：scenario3
-    """
-    return calculate_single_interference(
-        int_scenario_name="scenario4",
-        vic_scenario_name="scenario1",
-        victim_distance_range=(0, 50000),
-        satellite_distance_range=(0, Robservertotarget / 2),
-        is_ue_victim=False,
-        extra_gain_offset=10
-    )
-
-
-def aggregateInterference_new(num_interferers):
+def aggregateInterference_new(int_scenario_name, vic_scenario_name, num_interferers, **calc_kwargs):
     """
     聚合干扰计算函数
     
-    当一次快照中有 N 个干扰源时，先使用 singleInterference_new 计算每个干扰源
+    当一次快照中有 N 个干扰源时，调用 calculate_single_interference 计算每个干扰源
     对受扰方的干扰值，然后通过功率叠加的方式计算总聚合干扰。
     
     聚合公式：I_total = 10 * log10(sum(10^(I_i/10)))
@@ -404,8 +387,14 @@ def aggregateInterference_new(num_interferers):
     
     参数
     ----
+    int_scenario_name : str
+        干扰源场景名称
+    vic_scenario_name : str
+        受扰方场景名称
     num_interferers : int
         干扰源数量 N
+    **calc_kwargs : dict
+        传递给 calculate_single_interference 的其他参数
     
     返回
     ----
@@ -414,8 +403,12 @@ def aggregateInterference_new(num_interferers):
     sum_power_mw = 0.0  # 累加功率值（毫瓦）
     
     for _ in range(num_interferers):
-        # 计算单个干扰源的干扰值 (dBm)
-        interference_dbm = singleInterference_new()
+        # 调用通用函数计算单个干扰源的干扰值 (dBm)
+        interference_dbm = calculate_single_interference(
+            int_scenario_name=int_scenario_name,
+            vic_scenario_name=vic_scenario_name,
+            **calc_kwargs
+        )
         
         # 将 dBm 转换为毫瓦并累加：P(mW) = 10^(P(dBm)/10)
         sum_power_mw += 10 ** (interference_dbm / 10.0)
@@ -426,35 +419,52 @@ def aggregateInterference_new(num_interferers):
     return aggregate_interference
 
 
-def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
+def run_monte_carlo_simulation(
+    int_scenario_name,
+    vic_scenario_name,
+    num_iterations=1000,
+    use_aggregation=False,
+    num_interferers=1,
+    **calc_kwargs
+):
     """
     运行蒙特卡洛仿真
 
     参数
     ----
-    scenario_name : str
-        场景名称
+    int_scenario_name : str
+        干扰源场景名称
+    vic_scenario_name : str
+        受扰方场景名称
     num_iterations : int
         仿真迭代次数
+    use_aggregation : bool, default=False
+        是否使用聚合干扰计算
+    num_interferers : int, default=1
+        当 use_aggregation=True 时，指定干扰源数量
+    **calc_kwargs : dict
+        传递给 calculate_single_interference 的其他参数（如 victim_distance_range, satellite_distance_range 等）
 
     返回
     ----
     dict : 包含统计结果的字典
     """
-    # 选择对应的仿真函数
-    func_map = {
-        "scenario3": singleInterference_new
-    }
-
-    if scenario_name not in func_map:
-        raise ValueError(f"未知场景：{scenario_name}")
-
-    func = func_map[scenario_name]
-
     # 运行仿真
     results = []
     for _ in range(num_iterations):
-        result = func()
+        if use_aggregation:
+            result = aggregateInterference_new(
+                int_scenario_name=int_scenario_name,
+                vic_scenario_name=vic_scenario_name,
+                num_interferers=num_interferers,
+                **calc_kwargs
+            )
+        else:
+            result = calculate_single_interference(
+                int_scenario_name=int_scenario_name,
+                vic_scenario_name=vic_scenario_name,
+                **calc_kwargs
+            )
         if result > -999:  # 过滤掉无效结果
             results.append(result)
 
@@ -465,7 +475,10 @@ def run_monte_carlo_simulation(scenario_name, num_iterations=1000):
     results_np = np.array(results)
 
     return {
-        "scenario": scenario_name,
+        "int_scenario": int_scenario_name,
+        "vic_scenario": vic_scenario_name,
+        "use_aggregation": use_aggregation,
+        "num_interferers": num_interferers if use_aggregation else 1,
         "iterations": len(results),
         "mean": float(np.mean(results_np)),
         "std": float(np.std(results_np)),
@@ -495,20 +508,49 @@ if __name__ == "__main__":
 
     # 运行单个场景测试
     print("\n【单场景测试】")
-    test_scenario = "scenario4-scenario1"
-    print(f"\n测试场景：{test_scenario}")
+    print("\n测试场景：scenario4 (干扰源) -> scenario1 (受扰方)")
     try:
-        result = singleInterference_new()
+        result = calculate_single_interference(
+            int_scenario_name="scenario4",
+            vic_scenario_name="scenario1",
+            victim_distance_range=(0, 50000),
+            satellite_distance_range=(0, Robservertotarget / 2),
+            is_ue_victim=False,
+            extra_gain_offset=10
+        )
         print(f"  单次干扰计算结果：{result:.2f} dBm")
     except Exception as e:
         print(f"  错误：{e}")
 
-    # 运行蒙特卡洛仿真
-    print("\n【蒙特卡洛仿真】")
-    sim_scenario = "scenario2"
-    print(f"\n仿真场景：{sim_scenario}, 迭代次数：100")
+    # 运行聚合干扰测试
+    print("\n【聚合干扰测试】")
     try:
-        stats = run_monte_carlo_simulation(sim_scenario, num_iterations=100)
+        result_agg = aggregateInterference_new(
+            int_scenario_name="scenario4",
+            vic_scenario_name="scenario1",
+            num_interferers=5,
+            victim_distance_range=(0, 50000),
+            satellite_distance_range=(0, Robservertotarget / 2),
+            is_ue_victim=False,
+            extra_gain_offset=10
+        )
+        print(f"  5 个干扰源的聚合干扰结果：{result_agg:.2f} dBm")
+    except Exception as e:
+        print(f"  错误：{e}")
+
+    # 运行蒙特卡洛仿真
+    print("\n【蒙特卡洛仿真 - 单干扰源】")
+    print("仿真场景：scenario4 (干扰源) -> scenario1 (受扰方), 迭代次数：100")
+    try:
+        stats = run_monte_carlo_simulation(
+            int_scenario_name="scenario4",
+            vic_scenario_name="scenario1",
+            num_iterations=100,
+            victim_distance_range=(0, 50000),
+            satellite_distance_range=(0, Robservertotarget / 2),
+            is_ue_victim=False,
+            extra_gain_offset=10
+        )
         print(f"  有效样本数：{stats['iterations']}")
         print(f"  平均值：{stats['mean']:.2f} dBm")
         print(f"  标准差：{stats['std']:.2f} dB")
@@ -518,6 +560,56 @@ if __name__ == "__main__":
         print(f"  99% 分位数：{stats['percentile_99']:.2f} dBm")
     except Exception as e:
         print(f"  错误：{e}")
+
+    # 运行聚合干扰蒙特卡洛仿真
+    print("\n【蒙特卡洛仿真 - 聚合干扰】")
+    print("仿真场景：scenario4 (干扰源) -> scenario1 (受扰方), 迭代次数：100, 干扰源数量：5")
+    try:
+        stats_agg = run_monte_carlo_simulation(
+            int_scenario_name="scenario4",
+            vic_scenario_name="scenario1",
+            num_iterations=100,
+            use_aggregation=True,
+            num_interferers=5,
+            victim_distance_range=(0, 50000),
+            satellite_distance_range=(0, Robservertotarget / 2),
+            is_ue_victim=False,
+            extra_gain_offset=10
+        )
+        print(f"  有效样本数：{stats_agg['iterations']}")
+        print(f"  平均值：{stats_agg['mean']:.2f} dBm")
+        print(f"  标准差：{stats_agg['std']:.2f} dB")
+        print(f"  最小值：{stats_agg['min']:.2f} dBm")
+        print(f"  最大值：{stats_agg['max']:.2f} dBm")
+        print(f"  95% 分位数：{stats_agg['percentile_95']:.2f} dBm")
+        print(f"  99% 分位数：{stats_agg['percentile_99']:.2f} dBm")
+    except Exception as e:
+        print(f"  错误：{e}")
+
+    # 测试不同场景组合
+    print("\n【不同场景组合测试】")
+    test_combinations = [
+        ("scenario1", "scenario3"),
+        ("scenario2", "scenario1"),
+        ("scenario6", "scenario_other"),
+    ]
+    
+    for int_scn, vic_scn in test_combinations:
+        print(f"\n  测试：{int_scn} (干扰源) -> {vic_scn} (受扰方)")
+        try:
+            stats = run_monte_carlo_simulation(
+                int_scenario_name=int_scn,
+                vic_scenario_name=vic_scn,
+                num_iterations=50,
+                victim_distance_range=(0, 50000),
+                satellite_distance_range=(0, Robservertotarget / 2)
+            )
+            if "error" not in stats:
+                print(f"    平均值：{stats['mean']:.2f} dBm, 95% 分位数：{stats['percentile_95']:.2f} dBm")
+            else:
+                print(f"    错误：{stats['error']}")
+        except Exception as e:
+            print(f"    错误：{e}")
 
     print("\n" + "=" * 60)
     print("测试完成！")
