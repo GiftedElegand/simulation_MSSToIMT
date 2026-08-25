@@ -218,12 +218,20 @@ def calculate_single_interference(
     is_ue_victim=False,
     use_relative_az_el=False,
     extra_gain_offset=0,
-    custom_tx_gain_func=None
+    custom_tx_gain_func=None,
+    isolation_distance=0,
+    visible_radius=None
 ):
     """
     通用单干扰源计算函数（合并版本）
 
     通过参数配置支持所有场景的计算，避免代码重复
+
+    几何布局说明：
+    - 干扰源区域：以原点 (0,0) 为圆心、半径为 visible_radius 的圆形区域
+    - 干扰源位置：在圆形区域内随机放置
+    - 受扰站位置：固定在 (visible_radius + isolation_distance, 0) 处
+    - isolation_distance：受扰站到干扰源圆周边缘的直线距离
 
     参数
     ----
@@ -238,9 +246,9 @@ def calculate_single_interference(
     antenna_model : str, optional
         天线模型，如果不传则使用场景默认值
     victim_distance_range : tuple, optional
-        受害方距离范围 (min, max)，单位：米
+        受害方距离范围 (min, max)，单位：米（此参数在新布局中不使用，保留用于兼容）
     satellite_distance_range : tuple, optional
-        卫星终端距离范围 (min, max)，单位：米
+        卫星终端距离范围 (min, max)，单位：米（此参数在新布局中不使用，保留用于兼容）
     is_ue_victim : bool, default=False
         受害方是否为用户终端（True）还是基站（False）
     use_relative_az_el : bool, default=False
@@ -249,6 +257,10 @@ def calculate_single_interference(
         额外的增益偏移量 (dB)
     custom_tx_gain_func : callable, optional
         自定义发射增益计算函数
+    isolation_distance : float, default=0
+        受扰站到干扰源圆周边缘的隔离距离（米）
+    visible_radius : float, optional
+        干扰源区域的可视距离半径（米），如果不传则使用默认值 Robservertotarget / 2
 
     返回
     ----
@@ -265,6 +277,10 @@ def calculate_single_interference(
         tx_gain = int_params["tx_gain"]
     if antenna_model is None:
         antenna_model = vic_params["antenna_model"]
+    
+    # 设置可视距离半径
+    if visible_radius is None:
+        visible_radius = Robservertotarget / 2
 
     # 构建临时的受扰站配置
     temp_vic_config = vic_params.copy()
@@ -273,47 +289,34 @@ def calculate_single_interference(
     if antenna_model != vic_params["antenna_model"]:
         temp_vic_config["antenna_model"] = antenna_model
 
-    # 确定 IMT UE 的位置
-    _UE_h = random.uniform(-60, 60) / 180 * pi
+    # ===== 新的几何布局 =====
+    # 1. 干扰源在以原点为中心、半径为 visible_radius 的圆形区域内随机放置
+    interferer_angle = random.uniform(0, 2 * pi)
+    interferer_distance = random.uniform(0, visible_radius)
+    interferer_x = interferer_distance * cos(interferer_angle)
+    interferer_y = interferer_distance * sin(interferer_angle)
+    Satellite_UE = (interferer_x, interferer_y)
+    
+    # 2. 受扰站固定在 (visible_radius + isolation_distance, 0) 位置
+    victim_x = visible_radius + isolation_distance
+    victim_y = 0
+    IMT_station = (victim_x, victim_y)
+    
+    # 3. 计算干扰源到受扰站的距离
+    dx = IMT_station[0] - Satellite_UE[0]
+    dy = IMT_station[1] - Satellite_UE[1]
+    IMT_to_SUE_x = sqrt(dx**2 + dy**2)
 
-    if victim_distance_range:
-        UE_x = random.uniform(victim_distance_range[0], victim_distance_range[1])
-    elif is_ue_victim:
-        UE_x = random.uniform(0, IMTUEInCell(_UE_h, BS_radius))
-    else:
-        UE_x = random.uniform(0, IMTUEInCell(_UE_h, BS_radius))
-
-    _UE_v = coordinate_transforming_UE(UE_x)
-
-    if is_ue_victim:
-        IMT_station = (0, 0)
-        IMT_UE = (UE_x * cos(_UE_h), UE_x * sin(_UE_h))
-
-    # 确定卫星 UE 的位置
-    s_UE_h = random.uniform(-180, 180) / 180 * pi
-
-    if satellite_distance_range:
-        s_x = random.uniform(satellite_distance_range[0], satellite_distance_range[1])
-    else:
-        s_x = random.uniform(0, Robservertotarget / 2)
-
-    if use_relative_az_el:
-        # scenario6 的特殊处理
-        Satellite_UE = (s_x * cos(s_UE_h) + Satellite_dis, s_x * sin(s_UE_h))
-    else:
-        Satellite_UE = (Satellite_dis + s_x * cos(s_UE_h), s_x * sin(s_UE_h))
-
-    # 计算距离
-    IMT_to_SUE_x = sqrt(Satellite_UE[0]**2 + Satellite_UE[1]**2)
-
+    # 过滤超出保护距离的情况
     if IMT_to_SUE_x >= Robservertotarget:
         return -1000
 
     # 计算方位角和仰角
     if use_relative_az_el:
-        IMT_station = (0, 0)
+        # scenario6 的特殊处理 - 受扰站在原点
+        IMT_station_origin = (0, 0)
         IMT_to_SUE_h, IMT_to_SUE_v = calculate_azimuth_elevation(
-            IMT_station[0], IMT_station[1], BS_height,
+            IMT_station_origin[0], IMT_station_origin[1], BS_height,
             Satellite_UE[0], Satellite_UE[1], 1.5
         )
 
@@ -341,14 +344,12 @@ def calculate_single_interference(
 
     else:
         # 基站作为受害方（scenario1, 2, 3）
-        IMT_station = (0, 0)
-        IMT_UE = (UE_x * cos(_UE_h), UE_x * sin(_UE_h))
-
-        IMT_to_SUE_h, IMT_to_SUE_v = calculate_azimuth_elevation(
-            Satellite_UE[0], Satellite_UE[1], 1.5,
-            IMT_station[0], IMT_station[1], BS_height
-        )
-        IMT_to_SUE_h = atan2(Satellite_UE[1], Satellite_UE[0])
+        # 受扰站天线朝向原点（干扰源区域中心）
+        _UE_h = pi  # 天线朝向负 x 轴（指向原点）
+        _UE_v = coordinate_transforming_UE(0)  # 下倾角
+        
+        IMT_to_SUE_h = atan2(-Satellite_UE[1], -Satellite_UE[0])  # 从受扰站指向干扰源的角度
+        IMT_to_SUE_v = atan2(BS_height - 1.5, IMT_to_SUE_x)  # 仰角
 
         # 天线坐标转化
         UE_v = transformV(_UE_v, _UE_h, BS_tilt) - pi / 2
